@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian Journal</title>
+  <meta name="description" content="Premium insights on finance, business, and data science.">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&amp;display=swap" rel="stylesheet">
+  <script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        serif: ['Instrument Serif', 'Georgia', 'serif'],
+        sans: ['DM Sans', 'system-ui', 'sans-serif']
+      }
+    }
+  }
+}
+</script>
+  <style>
+html, body { height: 100%; margin: 0; }
+body { font-family: 'DM Sans', system-ui, sans-serif; }
+.app-wrapper { height: 100%; overflow: auto; }
+.scroll-progress { position: fixed; top: 0; left: 0; height: 3px; z-index: 9999; transition: width 0.1s linear; }
+.glass { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.fade-up { animation: fadeUp 0.5s ease forwards; opacity: 0; }
+.fade-up-1 { animation-delay: 0.1s; }
+.fade-up-2 { animation-delay: 0.2s; }
+.fade-up-3 { animation-delay: 0.3s; }
+.fade-up-4 { animation-delay: 0.4s; }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.article-body h2 { font-family: 'Instrument Serif', Georgia, serif; font-size: 1.75rem; margin: 2rem 0 1rem; }
+.article-body p { line-height: 1.8; margin-bottom: 1.25rem; }
+.article-body blockquote { border-left: 3px solid; padding-left: 1.25rem; margin: 1.5rem 0; font-style: italic; opacity: 0.85; }
+</style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="app-wrapper transition-colors duration-300"></div>
+  <script>
+// ── State ──
+let allArticles = [];
+let currentView = 'home'; // home | article | admin | author
+let currentArticleId = null;
+let currentCategory = 'All';
+let searchQuery = '';
+let currentPage = 1;
+const PER_PAGE = 6;
+let darkMode = localStorage.getItem('dm') === '1';
+let bookmarkedIds = JSON.parse(localStorage.getItem('bm') || '[]');
+let showMobileMenu = false;
+let adminMode = 'list'; // list | edit
+let editingArticle = null;
+let toastMsg = '';
+let toastTimer = null;
+let adminPin = localStorage.getItem('admin_pin') || null;
+let pinSetupOpen = false;
+let pinAuthOpen = false;
+let attemptedPin = '';
+let pinError = '';
+
+const CATEGORIES = ['All','Finance','Business','Data Science','Markets','Technology'];
+const GRADIENTS = [
+  'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)',
+  'linear-gradient(135deg,#0d1b2a,#1b263b,#415a77)',
+  'linear-gradient(135deg,#2d0036,#1a0025,#4a0e5c)',
+  'linear-gradient(135deg,#003d2e,#00261c,#005c45)',
+  'linear-gradient(135deg,#3d0000,#1a0000,#5c1a1a)',
+  'linear-gradient(135deg,#1a1a00,#2e2e00,#4a4a00)',
+];
+
+const SAMPLE_CONTENT = {
+  finance_ai: `<h2>The Rise of Algorithmic Trading</h2><p>Artificial intelligence has fundamentally reshaped financial markets. From high-frequency trading firms on Wall Street to retail platforms offering AI-powered portfolio management, the democratization of algorithmic strategies is accelerating at an unprecedented pace.</p><blockquote>By 2025, over 75% of all equity trades in the US are executed by algorithms — a figure that continues to climb.</blockquote><p>Machine learning models now analyze satellite imagery to predict retail earnings, parse natural language from earnings calls to gauge sentiment, and identify arbitrage opportunities across global markets in milliseconds. The question is no longer whether AI belongs in finance — it's how quickly traditional institutions can adapt.</p><h2>Key Strategies Emerging</h2><p>Reinforcement learning agents that adapt to changing market regimes, transformer-based models for time-series forecasting, and graph neural networks mapping corporate relationships are all pushing the frontier. The convergence of big data and compute power has made strategies once exclusive to quantitative hedge funds accessible to sophisticated retail traders.</p><p>However, risks abound. Model overfitting, data snooping bias, and flash crashes triggered by correlated AI systems remain significant concerns that regulators are still working to address.</p>`,
+  data_business: `<h2>Data as a Strategic Asset</h2><p>The most valuable companies of the 21st century share a common trait: they treat data not as a byproduct of operations, but as a core strategic asset. This paradigm shift has created entirely new business models and disrupted legacy industries.</p><p>Consider how Netflix uses viewing data to commission content, how Spotify's recommendation engine drives engagement, or how Amazon's logistics optimization saves billions annually. Each represents a masterclass in data-driven decision making.</p><h2>Building a Data Culture</h2><blockquote>Culture eats strategy for breakfast — and data culture eats both.</blockquote><p>Organizations that successfully leverage data share common characteristics: executive sponsorship, cross-functional data literacy programs, and infrastructure that democratizes access while maintaining governance. The technical stack matters less than the cultural foundation.</p><p>For businesses beginning this journey, start with a single, high-impact use case. Prove value, build momentum, and expand systematically rather than attempting enterprise-wide transformation overnight.</p>`,
+  markets_outlook: `<h2>Navigating Uncertainty</h2><p>Global markets face a confluence of forces: persistent inflation concerns, geopolitical tensions, supply chain restructuring, and the largest monetary tightening cycle in decades. For investors, this environment demands both vigilance and strategic clarity.</p><p>Fixed income markets have repriced dramatically, offering yields not seen in over a decade. Meanwhile, equity valuations in certain sectors have compressed to levels that historically precede strong forward returns.</p><h2>Sector Opportunities</h2><blockquote>The best time to plant a tree was twenty years ago. The second best time is now.</blockquote><p>Energy transition companies, healthcare innovators, and cybersecurity firms represent structural growth themes that transcend cyclical concerns. Meanwhile, emerging markets with favorable demographics and improving governance frameworks offer diversification benefits that developed-market portfolios increasingly need.</p><p>The key is maintaining a long-term perspective while managing near-term risk through diversification, position sizing, and systematic rebalancing.</p>`
+};
+
+// ── Helpers ──
+function toast(msg) {
+  toastMsg = msg;
+  clearTimeout(toastTimer);
+  renderToast();
+  toastTimer = setTimeout(() => { toastMsg = ''; renderToast(); }, 2500);
+}
+
+function renderToast() {
+  const el = document.getElementById('toast-container');
+  if (!el) return;
+  if (toastMsg) {
+    el.innerHTML = `<div class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium transition-all duration-300 ${darkMode ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'}">${toastMsg}</div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function toggleDark() {
+  darkMode = !darkMode;
+  localStorage.setItem('dm', darkMode ? '1' : '0');
+  render();
+}
+
+function toggleBookmark(id) {
+  const idx = bookmarkedIds.indexOf(id);
+  if (idx > -1) bookmarkedIds.splice(idx, 1);
+  else bookmarkedIds.push(id);
+  localStorage.setItem('bm', JSON.stringify(bookmarkedIds));
+  render();
+}
+
+function navigate(view, id) {
+  currentView = view;
+  currentArticleId = id || null;
+  currentPage = 1;
+  showMobileMenu = false;
+  document.querySelector('.app-wrapper').scrollTop = 0;
+  if (view === 'article' && id) {
+    const a = allArticles.find(x => x.__backendId === id);
+    if (a) {
+      window.dataSdk.update({ ...a, views: (a.views || 0) + 1 });
+    }
+  }
+  render();
+}
+
+function getContent(a) {
+  if (!a) return '';
+  const keys = Object.keys(SAMPLE_CONTENT);
+  const hash = (a.title || '').length % keys.length;
+  return SAMPLE_CONTENT[keys[hash]] || SAMPLE_CONTENT[keys[0]];
+}
+
+function getFilteredArticles() {
+  let list = [...allArticles].filter(a => a.type === 'article' && !a.admin_only);
+  if (currentCategory !== 'All') list = list.filter(a => a.category === currentCategory);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(a => (a.title||'').toLowerCase().includes(q) || (a.excerpt||'').toLowerCase().includes(q));
+  }
+  list.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return list;
+}
+
+function getMostRead() {
+  return [...allArticles].filter(a => a.type === 'article').sort((a, b) => (b.views||0) - (a.views||0)).slice(0, 5);
+}
+
+function getRecommended(currentId) {
+  const current = allArticles.find(a => a.__backendId === currentId);
+  if (!current) return [];
+  return allArticles.filter(a => a.type === 'article' && a.__backendId !== currentId && a.category === current.category).slice(0, 3);
+}
+
+// ── Config ──
+const defaultConfig = {
+  site_title: 'Meridian Journal',
+  site_tagline: 'Finance · Business · Data Science',
+  hero_heading: 'Ideas that move markets.',
+  newsletter_heading: 'Stay ahead of the curve',
+  newsletter_subtext: 'Weekly insights delivered to your inbox.',
+  background_color: '#f8f7f4',
+  surface_color: '#ffffff',
+  text_color: '#1a1a1a',
+  primary_action: '#c8102e',
+  secondary_action: '#64748b',
+  font_family: 'DM Sans',
+  font_size: 16
+};
+
+let config = { ...defaultConfig };
+
+function applyConfig(c) {
+  config = { ...defaultConfig, ...c };
+  const root = document.documentElement;
+  root.style.setProperty('--bg', config.background_color);
+  root.style.setProperty('--surface', config.surface_color);
+  root.style.setProperty('--text', config.text_color);
+  root.style.setProperty('--primary', config.primary_action);
+  root.style.setProperty('--secondary', config.secondary_action);
+  document.getElementById('app').style.fontFamily = `${config.font_family}, DM Sans, system-ui, sans-serif`;
+  document.getElementById('app').style.fontSize = `${config.font_size}px`;
+  render();
+}
+
+// ── Element SDK ──
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async (c) => applyConfig(c),
+  mapToCapabilities: (c) => ({
+    recolorables: [
+      { get: () => c.background_color || defaultConfig.background_color, set: v => { c.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+      { get: () => c.surface_color || defaultConfig.surface_color, set: v => { c.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+      { get: () => c.text_color || defaultConfig.text_color, set: v => { c.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+      { get: () => c.primary_action || defaultConfig.primary_action, set: v => { c.primary_action = v; window.elementSdk.setConfig({ primary_action: v }); } },
+      { get: () => c.secondary_action || defaultConfig.secondary_action, set: v => { c.secondary_action = v; window.elementSdk.setConfig({ secondary_action: v }); } },
+    ],
+    borderables: [],
+    fontEditable: { get: () => c.font_family || defaultConfig.font_family, set: v => { c.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+    fontSizeable: { get: () => c.font_size || defaultConfig.font_size, set: v => { c.font_size = v; window.elementSdk.setConfig({ font_size: v }); } },
+  }),
+  mapToEditPanelValues: (c) => new Map([
+    ['site_title', c.site_title || defaultConfig.site_title],
+    ['site_tagline', c.site_tagline || defaultConfig.site_tagline],
+    ['hero_heading', c.hero_heading || defaultConfig.hero_heading],
+    ['newsletter_heading', c.newsletter_heading || defaultConfig.newsletter_heading],
+    ['newsletter_subtext', c.newsletter_subtext || defaultConfig.newsletter_subtext],
+  ])
+});
+
+// ── Data SDK ──
+const dataHandler = {
+  onDataChanged(data) {
+    allArticles = data;
+    render();
+  }
+};
+
+(async () => {
+  const r = await window.dataSdk.init(dataHandler);
+  if (!r.isOk) console.error('Data SDK init failed');
+})();
+
+// ── Scroll Progress ──
+function setupScrollProgress() {
+  const wrapper = document.querySelector('.app-wrapper');
+  const bar = document.getElementById('scroll-progress');
+  if (!wrapper || !bar) return;
+  wrapper.addEventListener('scroll', () => {
+    const pct = wrapper.scrollTop / (wrapper.scrollHeight - wrapper.clientHeight) * 100;
+    bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  });
+}
+
+// ── Render ──
+function render() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const dm = darkMode;
+  const bg = dm ? '#0a0a0a' : (config.background_color || '#f8f7f4');
+  const surface = dm ? '#151515' : (config.surface_color || '#ffffff');
+  const text = dm ? '#e5e5e5' : (config.text_color || '#1a1a1a');
+  const textMuted = dm ? '#888' : (config.secondary_action || '#64748b');
+  const primary = config.primary_action || '#c8102e';
+  const border = dm ? '#222' : '#e5e5e5';
+
+  let html = `
+    <div id="scroll-progress" class="scroll-progress" style="background:${primary};width:0"></div>
+    <div id="toast-container"></div>
+    <div style="background:${bg};color:${text};min-height:100%;">
+  `;
+
+  // Navbar
+  html += `
+    <nav class="sticky top-0 z-50 glass border-b" style="background:${dm ? 'rgba(10,10,10,0.85)' : 'rgba(248,247,244,0.85)'};border-color:${border};">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="flex items-center justify-between h-14">
+          <button onclick="navigate('home')" class="flex items-center gap-2 hover:opacity-80 transition">
+            <span style="font-family:'Instrument Serif',Georgia,serif;font-size:1.4rem;color:${text};">${config.site_title || 'Meridian Journal'}</span>
+          </button>
+          <div class="hidden md:flex items-center gap-6 text-sm" style="color:${textMuted};">
+            ${['Finance','Business','Data Science','Markets'].map(c => `<button onclick="currentCategory='${c}';currentView='home';currentPage=1;render();" class="hover:opacity-100 transition ${currentCategory===c?'font-semibold':'opacity-70'}" style="${currentCategory===c?'color:'+primary:''}">${c}</button>`).join('')}
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm" style="background:${dm?'#1a1a1a':'#f0eeeb'};color:${textMuted};">
+              <i data-lucide="search" style="width:14px;height:14px;"></i>
+              <input type="text" placeholder="Search…" value="${searchQuery}" oninput="searchQuery=this.value;currentPage=1;render();" class="bg-transparent outline-none w-28" style="color:${text};" aria-label="Search articles">
+            </div>
+            <button onclick="toggleDark()" class="p-2 rounded-lg transition hover:opacity-70" aria-label="Toggle dark mode">
+              <i data-lucide="${dm?'sun':'moon'}" style="width:18px;height:18px;color:${textMuted};"></i>
+            </button>
+            <button onclick="adminPin ? (pinAuthOpen=true) : (pinSetupOpen=true); render();" class="p-2 rounded-lg transition hover:opacity-70" aria-label="Admin">
+              <i data-lucide="settings" style="width:18px;height:18px;color:${textMuted};"></i>
+            </button>
+            <button onclick="showMobileMenu=!showMobileMenu;render();" class="md:hidden p-2" aria-label="Menu">
+              <i data-lucide="${showMobileMenu?'x':'menu'}" style="width:20px;height:20px;color:${text};"></i>
+            </button>
+          </div>
+        </div>
+        ${showMobileMenu ? `
+        <div class="md:hidden pb-4 flex flex-col gap-2 text-sm" style="color:${textMuted};">
+          <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:${dm?'#1a1a1a':'#f0eeeb'};">
+            <i data-lucide="search" style="width:14px;height:14px;"></i>
+            <input type="text" placeholder="Search…" value="${searchQuery}" oninput="searchQuery=this.value;currentPage=1;render();" class="bg-transparent outline-none flex-1" style="color:${text};" aria-label="Search articles mobile">
+          </div>
+          ${CATEGORIES.map(c => `<button onclick="currentCategory='${c}';showMobileMenu=false;currentView='home';currentPage=1;render();" class="text-left px-3 py-2 rounded-lg transition ${currentCategory===c?'font-semibold':''}" style="${currentCategory===c?'color:'+primary+';background:'+(dm?'#1a1a1a':'#f0eeeb'):''}">${c}</button>`).join('')}
+        </div>` : ''}
+      </div>
+    </nav>
+  `;
+
+  if (currentView === 'home') html += renderHome(bg, surface, text, textMuted, primary, border, dm);
+  else if (currentView === 'article') html += renderArticle(bg, surface, text, textMuted, primary, border, dm);
+  else if (currentView === 'admin') {
+    if (pinSetupOpen) html += renderPinSetup(bg, surface, text, textMuted, primary, border, dm);
+    else if (pinAuthOpen) html += renderPinAuth(bg, surface, text, textMuted, primary, border, dm);
+    else html += renderAdmin(bg, surface, text, textMuted, primary, border, dm);
+  }
+  else if (currentView === 'author') html += renderAuthor(bg, surface, text, textMuted, primary, border, dm);
+
+  // Footer
+  html += `
+    <footer class="border-t py-10 px-4" style="border-color:${border};color:${textMuted};">
+      <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+        <span style="font-family:'Instrument Serif',Georgia,serif;font-size:1.1rem;color:${text};">${config.site_title || 'Meridian Journal'}</span>
+        <span>© ${new Date().getFullYear()} All rights reserved.</span>
+      </div>
+    </footer>
+  </div>`;
+
+  app.innerHTML = html;
+  lucide.createIcons();
+  setupScrollProgress();
+  renderToast();
+}
+
+function renderHome(bg, surface, text, textMuted, primary, border, dm) {
+  const articles = getFilteredArticles();
+  const featured = articles[0];
+  const trending = getMostRead();
+  const paginated = articles.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
+  const totalPages = Math.ceil(articles.length / PER_PAGE);
+
+  let h = '';
+
+  // Hero
+  if (featured && currentCategory === 'All' && !searchQuery) {
+    h += `
+    <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-8 fade-up">
+      <p class="text-sm tracking-widest uppercase mb-3" style="color:${primary};letter-spacing:0.15em;">${config.site_tagline || ''}</p>
+      <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:clamp(2.5rem,5vw,4rem);line-height:1.1;color:${text};max-width:700px;" class="mb-6">${config.hero_heading || 'Ideas that move markets.'}</h1>
+      <button onclick="navigate('article','${featured.__backendId}')" class="group cursor-pointer">
+        <div class="rounded-2xl overflow-hidden" style="background:${featured.image_gradient || GRADIENTS[0]};height:clamp(200px,30%,380px);">
+          <div class="h-full flex items-end p-6 sm:p-10" style="background:linear-gradient(to top,rgba(0,0,0,0.7),transparent);">
+            <div>
+              <span class="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded" style="background:${primary};color:#fff;">${featured.category || 'Finance'}</span>
+              <h2 class="text-white mt-3 text-xl sm:text-2xl font-semibold" style="font-family:'Instrument Serif',Georgia,serif;font-size:clamp(1.3rem,3vw,2rem);">${featured.title}</h2>
+              <p class="text-gray-300 text-sm mt-2 line-clamp-2 max-w-lg">${featured.excerpt || ''}</p>
+            </div>
+          </div>
+        </div>
+      </button>
+    </section>`;
+  }
+
+  // Ad placeholder
+  if (currentCategory === 'All' && !searchQuery) {
+    h += `<div class="max-w-6xl mx-auto px-4 sm:px-6 mb-8"><div class="rounded-xl py-3 text-center text-xs" style="background:${dm?'#111':'#f0eeeb'};color:${textMuted};">— Ad Space —</div></div>`;
+  }
+
+  // Trending sidebar + articles grid
+  h += `<section class="max-w-6xl mx-auto px-4 sm:px-6 pb-12">`;
+
+  // Category pills
+  h += `<div class="flex gap-2 mb-8 overflow-x-auto pb-2">
+    ${CATEGORIES.map(c => `<button onclick="currentCategory='${c}';currentPage=1;render();" class="px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-all" style="${currentCategory===c ? 'background:'+primary+';color:#fff;' : 'background:'+(dm?'#1a1a1a':'#f0eeeb')+';color:'+textMuted+';'}">${c}</button>`).join('')}
+  </div>`;
+
+  if (articles.length === 0) {
+    h += `<div class="text-center py-20">
+      <i data-lucide="file-text" style="width:48px;height:48px;color:${textMuted};margin:0 auto 1rem;display:block;opacity:0.4;"></i>
+      <p class="text-lg" style="color:${textMuted};">No articles yet.</p>
+      <p class="text-sm mt-2" style="color:${textMuted};">Head to the admin panel to create your first post.</p>
+      <button onclick="navigate('admin')" class="mt-4 px-5 py-2 rounded-lg text-sm font-medium text-white" style="background:${primary};">Open Admin</button>
+    </div>`;
+  } else {
+    h += `<div class="grid lg:grid-cols-3 gap-8">`;
+    // Main grid
+    h += `<div class="lg:col-span-2 grid sm:grid-cols-2 gap-6">`;
+    paginated.forEach((a, i) => {
+      const bm = bookmarkedIds.includes(a.__backendId);
+      h += `
+      <article class="rounded-xl overflow-hidden transition-all hover:shadow-lg fade-up fade-up-${i%4+1}" style="background:${surface};border:1px solid ${border};">
+        <button onclick="navigate('article','${a.__backendId}')" class="w-full text-left cursor-pointer">
+          <div class="h-36 w-full" style="background:${a.image_gradient || GRADIENTS[i % GRADIENTS.length]};"></div>
+          <div class="p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-xs font-semibold uppercase tracking-wide" style="color:${primary};">${a.category || ''}</span>
+              <span class="text-xs" style="color:${textMuted};">· ${a.reading_time || 5} min read</span>
+            </div>
+            <h3 class="font-semibold line-clamp-2 mb-2" style="font-family:'Instrument Serif',Georgia,serif;font-size:1.15rem;color:${text};">${a.title}</h3>
+            <p class="text-sm line-clamp-2" style="color:${textMuted};">${a.excerpt || ''}</p>
+          </div>
+        </button>
+        <div class="px-4 pb-3 flex items-center justify-between">
+          <button onclick="navigate('author')" class="flex items-center gap-2 text-xs" style="color:${textMuted};">
+            <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${primary};">${(a.author||'A')[0]}</div>
+            <span>${a.author || 'Author'}</span>
+            <span>· ${a.date || ''}</span>
+          </button>
+          <button onclick="event.stopPropagation();toggleBookmark('${a.__backendId}')" class="p-1" aria-label="Bookmark">
+            <i data-lucide="bookmark" style="width:16px;height:16px;color:${bm?primary:textMuted};${bm?'fill:'+primary:''}"></i>
+          </button>
+        </div>
+      </article>`;
+    });
+    h += `</div>`;
+
+    // Sidebar
+    h += `<aside class="space-y-6">`;
+    // Most read
+    if (trending.length > 0) {
+      h += `<div class="rounded-xl p-5" style="background:${surface};border:1px solid ${border};">
+        <h3 class="text-sm font-bold uppercase tracking-wider mb-4" style="color:${primary};">Most Read This Week</h3>
+        <div class="space-y-4">
+          ${trending.map((a, i) => `
+            <button onclick="navigate('article','${a.__backendId}')" class="flex gap-3 w-full text-left hover:opacity-80 transition">
+              <span class="text-2xl font-bold" style="font-family:'Instrument Serif',Georgia,serif;color:${dm?'#333':border};line-height:1;">${String(i+1).padStart(2,'0')}</span>
+              <div>
+                <p class="text-sm font-medium line-clamp-2" style="color:${text};">${a.title}</p>
+                <p class="text-xs mt-1" style="color:${textMuted};">${a.views||0} views</p>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+    // Newsletter
+    h += `
+    <div class="rounded-xl p-5" style="background:${primary};color:#fff;">
+      <h3 class="font-bold text-lg mb-1" style="font-family:'Instrument Serif',Georgia,serif;">${config.newsletter_heading || 'Stay ahead of the curve'}</h3>
+      <p class="text-sm opacity-80 mb-4">${config.newsletter_subtext || 'Weekly insights delivered to your inbox.'}</p>
+      <form onsubmit="event.preventDefault();toast('Subscribed!');this.reset();">
+        <label for="nl-email" class="sr-only">Email</label>
+        <input id="nl-email" type="email" required placeholder="you@email.com" class="w-full px-3 py-2 rounded-lg text-sm text-gray-900 outline-none mb-2" aria-label="Email for newsletter">
+        <button type="submit" class="w-full py-2 rounded-lg text-sm font-semibold transition" style="background:rgba(0,0,0,0.3);color:#fff;">Subscribe</button>
+      </form>
+    </div>`;
+    // Affiliate
+    h += `<div class="rounded-xl p-5 text-center" style="background:${dm?'#111':'#f0eeeb'};border:1px solid ${border};">
+      <p class="text-xs uppercase tracking-wider mb-2" style="color:${textMuted};">Recommended</p>
+      <p class="font-semibold text-sm mb-3" style="color:${text};">Master Data Science in 2025</p>
+      <button onclick="toast('Affiliate link clicked')" class="px-4 py-2 rounded-lg text-sm font-medium text-white" style="background:${primary};">Learn More →</button>
+    </div>`;
+    h += `</aside></div>`;
+
+    // Pagination
+    if (totalPages > 1) {
+      h += `<div class="flex items-center justify-center gap-2 mt-10">
+        <button onclick="if(currentPage>1){currentPage--;render();}" class="px-3 py-2 rounded-lg text-sm" style="background:${dm?'#1a1a1a':'#f0eeeb'};color:${currentPage<=1?border:text};" ${currentPage<=1?'disabled':''}><i data-lucide="chevron-left" style="width:16px;height:16px;"></i></button>
+        <span class="text-sm px-3" style="color:${textMuted};">Page ${currentPage} of ${totalPages}</span>
+        <button onclick="if(currentPage<${totalPages}){currentPage++;render();}" class="px-3 py-2 rounded-lg text-sm" style="background:${dm?'#1a1a1a':'#f0eeeb'};color:${currentPage>=totalPages?border:text};" ${currentPage>=totalPages?'disabled':''}><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></button>
+      </div>`;
+    }
+  }
+
+  h += `</section>`;
+  return h;
+}
+
+function renderArticle(bg, surface, text, textMuted, primary, border, dm) {
+  const a = allArticles.find(x => x.__backendId === currentArticleId);
+  if (!a) return `<div class="max-w-3xl mx-auto px-4 py-20 text-center"><p style="color:${textMuted};">Article not found.</p></div>`;
+  const bm = bookmarkedIds.includes(a.__backendId);
+  const content = getContent(a);
+  const recommended = getRecommended(a.__backendId);
+  const toc = [...content.matchAll(/<h2>(.*?)<\/h2>/g)].map(m => m[1]);
+
+  let h = `
+  <article class="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-16 fade-up">
+    <button onclick="navigate('home')" class="flex items-center gap-1 text-sm mb-6 hover:opacity-70 transition" style="color:${textMuted};">
+      <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back
+    </button>
+    <div class="mb-6">
+      <span class="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded" style="background:${primary};color:#fff;">${a.category || 'General'}</span>
+      <span class="text-xs ml-3" style="color:${textMuted};">${a.reading_time || 5} min read · ${a.views || 0} views</span>
+    </div>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:clamp(2rem,4vw,3rem);line-height:1.15;color:${text};" class="mb-4">${a.title}</h1>
+    <p class="text-lg mb-6" style="color:${textMuted};">${a.excerpt || ''}</p>
+    <div class="flex items-center gap-3 mb-8 pb-8 border-b" style="border-color:${border};">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background:${primary};">${(a.author||'A')[0]}</div>
+      <div>
+        <button onclick="navigate('author')" class="font-medium text-sm hover:underline" style="color:${text};">${a.author || 'Author'}</button>
+        <p class="text-xs" style="color:${textMuted};">${a.date || ''}</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <button onclick="toggleBookmark('${a.__backendId}')" class="p-2 rounded-lg transition" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Bookmark">
+          <i data-lucide="bookmark" style="width:18px;height:18px;color:${bm?primary:textMuted};${bm?'fill:'+primary:''}"></i>
+        </button>
+        <button onclick="toast('Link copied!')" class="p-2 rounded-lg transition" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Share">
+          <i data-lucide="share" style="width:18px;height:18px;color:${textMuted};"></i>
+        </button>
+      </div>
+    </div>`;
+
+  // TOC
+  if (toc.length > 0) {
+    h += `<div class="rounded-xl p-5 mb-8" style="background:${dm?'#111':'#f9f8f5'};border:1px solid ${border};">
+      <p class="text-xs uppercase tracking-wider font-bold mb-3" style="color:${primary};">Table of Contents</p>
+      ${toc.map((t, i) => `<p class="text-sm py-1" style="color:${textMuted};">${i+1}. ${t}</p>`).join('')}
+    </div>`;
+  }
+
+  // Article body
+  h += `<div class="article-body" style="color:${text};font-size:1.05rem;">${content}</div>`;
+
+  // In-article CTA
+  h += `<div class="rounded-xl p-6 my-10 text-center" style="background:${dm?'#111':'#f9f8f5'};border:1px solid ${border};">
+    <p class="text-sm uppercase tracking-wider mb-2" style="color:${primary};">Sponsored</p>
+    <p class="font-semibold mb-3" style="font-family:'Instrument Serif',Georgia,serif;color:${text};">Elevate your financial literacy</p>
+    <button onclick="toast('Affiliate link clicked')" class="px-5 py-2 rounded-lg text-sm font-medium text-white" style="background:${primary};">Get Started →</button>
+  </div>`;
+
+  // Share
+  h += `<div class="flex items-center gap-3 py-6 border-t border-b mb-10" style="border-color:${border};">
+    <span class="text-sm font-medium" style="color:${textMuted};">Share:</span>
+    ${['twitter','linkedin','facebook'].map(s => `<button onclick="toast('Shared to ${s}!')" class="p-2 rounded-lg" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Share on ${s}"><i data-lucide="${s}" style="width:16px;height:16px;color:${textMuted};"></i></button>`).join('')}
+    <button onclick="toast('Link copied!')" class="p-2 rounded-lg" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Copy link"><i data-lucide="copy" style="width:16px;height:16px;color:${textMuted};"></i></button>
+  </div>`;
+
+  // Comments
+  h += `<section class="mb-10">
+    <h3 class="font-bold text-lg mb-4" style="font-family:'Instrument Serif',Georgia,serif;color:${text};">Comments</h3>
+    <form onsubmit="event.preventDefault();toast('Comment posted!');this.reset();" class="mb-6">
+      <label for="comment-input" class="sr-only">Your comment</label>
+      <textarea id="comment-input" rows="3" placeholder="Share your thoughts…" class="w-full rounded-xl p-4 text-sm outline-none resize-none" style="background:${dm?'#111':'#f9f8f5'};border:1px solid ${border};color:${text};" aria-label="Comment"></textarea>
+      <button type="submit" class="mt-2 px-5 py-2 rounded-lg text-sm font-medium text-white" style="background:${primary};">Post Comment</button>
+    </form>
+    <div class="space-y-4">
+      <div class="rounded-xl p-4" style="background:${dm?'#111':'#f9f8f5'};border:1px solid ${border};">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${primary};">R</div>
+          <span class="text-sm font-medium" style="color:${text};">Reader</span>
+          <span class="text-xs" style="color:${textMuted};">· Just now</span>
+        </div>
+        <p class="text-sm" style="color:${textMuted};">Great analysis! Looking forward to the next piece.</p>
+      </div>
+    </div>
+  </section>`;
+
+  // Recommended
+  if (recommended.length > 0) {
+    h += `<section>
+      <h3 class="font-bold text-lg mb-4" style="font-family:'Instrument Serif',Georgia,serif;color:${text};"><i data-lucide="sparkles" style="width:18px;height:18px;display:inline;vertical-align:middle;color:${primary};"></i> Recommended for You</h3>
+      <div class="grid sm:grid-cols-3 gap-4">
+        ${recommended.map((r, i) => `
+          <button onclick="navigate('article','${r.__backendId}')" class="text-left rounded-xl overflow-hidden transition hover:shadow-md" style="background:${surface};border:1px solid ${border};">
+            <div class="h-24 w-full" style="background:${r.image_gradient || GRADIENTS[i%GRADIENTS.length]};"></div>
+            <div class="p-3">
+              <p class="text-xs font-semibold" style="color:${primary};">${r.category}</p>
+              <p class="text-sm font-medium line-clamp-2 mt-1" style="color:${text};">${r.title}</p>
+            </div>
+          </button>
+        `).join('')}
+      </div>
+    </section>`;
+  }
+
+  h += `</article>`;
+  return h;
+}
+
+function renderAdmin(bg, surface, text, textMuted, primary, border, dm) {
+  const articles = allArticles.filter(a => a.type === 'article');
+  let h = `<section class="max-w-4xl mx-auto px-4 sm:px-6 py-10 fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:2rem;color:${text};">Admin Panel</h1>
+        <p class="text-sm" style="color:${textMuted};">${articles.length} article${articles.length!==1?'s':''}</p>
+      </div>
+      <button onclick="editingArticle=null;adminMode='edit';render();" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style="background:${primary};">
+        <i data-lucide="plus" style="width:16px;height:16px;"></i> New Article
+      </button>
+    </div>`;
+
+  if (adminMode === 'edit') {
+    const ea = editingArticle;
+    h += `
+    <form id="admin-form" onsubmit="event.preventDefault();handleAdminSave();" class="rounded-xl p-6 space-y-4" style="background:${surface};border:1px solid ${border};">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold" style="color:${text};">${ea ? 'Edit' : 'New'} Article</h2>
+        <button type="button" onclick="adminMode='list';editingArticle=null;render();" class="text-sm" style="color:${textMuted};">Cancel</button>
+      </div>
+      <div><label for="af-title" class="block text-sm font-medium mb-1" style="color:${text};">Title</label>
+        <input id="af-title" type="text" required value="${ea?ea.title.replace(/"/g,'&quot;'):''}" class="w-full px-3 py-2 rounded-lg text-sm outline-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:1px solid ${border};color:${text};">
+      </div>
+      <div><label for="af-excerpt" class="block text-sm font-medium mb-1" style="color:${text};">Excerpt</label>
+        <textarea id="af-excerpt" rows="2" class="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:1px solid ${border};color:${text};">${ea?ea.excerpt:''}</textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label for="af-cat" class="block text-sm font-medium mb-1" style="color:${text};">Category</label>
+          <select id="af-cat" class="w-full px-3 py-2 rounded-lg text-sm outline-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:1px solid ${border};color:${text};">
+            ${CATEGORIES.filter(c=>c!=='All').map(c=>`<option value="${c}" ${ea&&ea.category===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div><label for="af-author" class="block text-sm font-medium mb-1" style="color:${text};">Author</label>
+          <input id="af-author" type="text" value="${ea?ea.author.replace(/"/g,'&quot;'):''}" placeholder="Author name" class="w-full px-3 py-2 rounded-lg text-sm outline-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:1px solid ${border};color:${text};">
+        </div>
+      </div>
+      <div class="flex items-center gap-2 p-3 rounded-lg" style="background:${dm?'#111':'#f9f8f5'};border:1px solid ${border};">
+        <input id="af-admin-only" type="checkbox" ${ea&&ea.admin_only?'checked':''} class="w-4 h-4 rounded cursor-pointer">
+        <label for="af-admin-only" class="text-sm font-medium cursor-pointer" style="color:${text};">Admin only (hidden from public)</label>
+      </div>
+      <button type="submit" id="admin-save-btn" class="w-full py-2.5 rounded-lg text-sm font-semibold text-white" style="background:${primary};">${ea ? 'Update' : 'Publish'} Article</button>
+    </form>`;
+  } else {
+    if (articles.length === 0) {
+      h += `<div class="text-center py-16 rounded-xl" style="background:${surface};border:1px solid ${border};">
+        <i data-lucide="file-text" style="width:40px;height:40px;color:${textMuted};margin:0 auto 1rem;display:block;opacity:0.4;"></i>
+        <p style="color:${textMuted};">No articles yet. Create your first one!</p>
+      </div>`;
+    } else {
+      h += `<div class="space-y-3">`;
+      articles.forEach(a => {
+        h += `
+        <div class="flex items-center gap-4 p-4 rounded-xl" style="background:${surface};border:1px solid ${border};">
+          <div class="w-12 h-12 rounded-lg flex-shrink-0" style="background:${a.image_gradient || GRADIENTS[0]};"></div>
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm truncate" style="color:${text};">${a.title}</p>
+            <p class="text-xs" style="color:${textMuted};">${a.category} · ${a.date} · ${a.views||0} views</p>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="editingArticle=allArticles.find(x=>x.__backendId==='${a.__backendId}');adminMode='edit';render();" class="p-2 rounded-lg" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Edit"><i data-lucide="edit" style="width:14px;height:14px;color:${textMuted};"></i></button>
+            <button onclick="handleDelete('${a.__backendId}')" class="p-2 rounded-lg" style="background:${dm?'#1a1a1a':'#f0eeeb'};" aria-label="Delete"><i data-lucide="trash-2" style="width:14px;height:14px;color:#e74c3c;"></i></button>
+          </div>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+  }
+
+  h += `</section>`;
+  return h;
+}
+
+function renderAuthor(bg, surface, text, textMuted, primary, border, dm) {
+  const articles = allArticles.filter(a => a.type === 'article');
+  let h = `
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 py-12 fade-up">
+    <button onclick="navigate('home')" class="flex items-center gap-1 text-sm mb-8 hover:opacity-70 transition" style="color:${textMuted};">
+      <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back
+    </button>
+    <div class="text-center mb-10">
+      <div class="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center text-2xl font-bold text-white" style="background:${primary};">M</div>
+      <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:2rem;color:${text};">Meridian Staff</h1>
+      <p class="text-sm mt-2 max-w-md mx-auto" style="color:${textMuted};">Covering markets, technology, and the intersection of data and business strategy.</p>
+      <div class="flex items-center justify-center gap-6 mt-4 text-sm" style="color:${textMuted};">
+        <span><strong style="color:${text};">${articles.length}</strong> Articles</span>
+        <span><strong style="color:${text};">${articles.reduce((s,a)=>(s+(a.views||0)),0)}</strong> Total Views</span>
+      </div>
+    </div>
+    <div class="space-y-4">
+      ${articles.map(a => `
+        <button onclick="navigate('article','${a.__backendId}')" class="w-full text-left flex gap-4 p-4 rounded-xl hover:shadow-md transition" style="background:${surface};border:1px solid ${border};">
+          <div class="w-16 h-16 rounded-lg flex-shrink-0" style="background:${a.image_gradient||GRADIENTS[0]};"></div>
+          <div>
+            <p class="font-medium text-sm" style="color:${text};">${a.title}</p>
+            <p class="text-xs mt-1" style="color:${textMuted};">${a.category} · ${a.date} · ${a.views||0} views</p>
+          </div>
+        </button>
+      `).join('')}
+    </div>
+  </section>`;
+  return h;
+}
+
+// ── PIN Functions ──
+function renderPinSetup(bg, surface, text, textMuted, primary, border, dm) {
+  let h = `<section class="max-w-md mx-auto px-4 sm:px-6 py-12 fade-up">
+    <div class="text-center mb-8">
+      <i data-lucide="lock" style="width:40px;height:40px;color:${primary};margin:0 auto 1rem;display:block;"></i>
+      <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;color:${text};">Set Admin PIN</h1>
+      <p class="text-sm mt-2" style="color:${textMuted};">Create a 4-digit PIN to protect admin access</p>
+    </div>
+    <div class="rounded-xl p-6 space-y-4" style="background:${surface};border:1px solid ${border};">
+      <div>
+        <label for="setup-pin" class="block text-sm font-medium mb-2" style="color:${text};">Enter 4-digit PIN</label>
+        <input id="setup-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••" class="w-full px-3 py-3 rounded-lg text-lg tracking-widest text-center font-bold outline-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:2px solid ${border};color:${text};" aria-label="Setup PIN">
+        <button onclick="setupPin();" class="w-full mt-4 py-2.5 rounded-lg text-sm font-semibold text-white" style="background:${primary};">Create PIN</button>
+      </div>
+      <button onclick="pinSetupOpen=false;render();" class="w-full py-2 rounded-lg text-sm font-medium" style="background:${dm?'#1a1a1a':'#f0eeeb'};color:${text};">Cancel</button>
+    </div>
+  </section>`;
+  return h;
+}
+
+function renderPinAuth(bg, surface, text, textMuted, primary, border, dm) {
+  let h = `<section class="max-w-md mx-auto px-4 sm:px-6 py-12 fade-up">
+    <div class="text-center mb-8">
+      <i data-lucide="lock" style="width:40px;height:40px;color:${primary};margin:0 auto 1rem;display:block;"></i>
+      <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;color:${text};">Admin Access</h1>
+      <p class="text-sm mt-2" style="color:${textMuted};">Enter your PIN to continue</p>
+    </div>
+    <div class="rounded-xl p-6 space-y-4" style="background:${surface};border:1px solid ${border};">
+      <div>
+        <label for="auth-pin" class="block text-sm font-medium mb-2" style="color:${text};">Enter PIN</label>
+        <input id="auth-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••" class="w-full px-3 py-3 rounded-lg text-lg tracking-widest text-center font-bold outline-none" style="background:${dm?'#0a0a0a':'#f9f8f5'};border:2px solid ${border};color:${text};" aria-label="Auth PIN">
+        ${pinError ? `<p class="text-xs mt-2" style="color:#e74c3c;">${pinError}</p>` : ''}
+        <button onclick="authPin();" class="w-full mt-4 py-2.5 rounded-lg text-sm font-semibold text-white" style="background:${primary};">Unlock</button>
+      </div>
+      <button onclick="pinAuthOpen=false;render();" class="w-full py-2 rounded-lg text-sm font-medium" style="background:${dm?'#1a1a1a':'#f0eeeb'};color:${text};">Back</button>
+    </div>
+  </section>`;
+  return h;
+}
+
+function setupPin() {
+  const pin = document.getElementById('setup-pin').value.trim();
+  if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+    toast('PIN must be 4 digits');
+    return;
+  }
+  adminPin = pin;
+  localStorage.setItem('admin_pin', pin);
+  pinSetupOpen = false;
+  navigate('admin');
+  toast('PIN created! You can now access admin panel.');
+}
+
+function authPin() {
+  const pin = document.getElementById('auth-pin').value.trim();
+  if (pin === adminPin) {
+    pinAuthOpen = false;
+    navigate('admin');
+  } else {
+    pinError = 'Incorrect PIN';
+    setTimeout(() => { pinError = ''; render(); }, 3000);
+    document.getElementById('auth-pin').value = '';
+  }
+}
+
+// ── Admin Handlers ──
+async function handleAdminSave() {
+  const btn = document.getElementById('admin-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const title = document.getElementById('af-title').value.trim();
+  const excerpt = document.getElementById('af-excerpt').value.trim();
+  const category = document.getElementById('af-cat').value;
+  const author = document.getElementById('af-author').value.trim() || 'Meridian Staff';
+
+  if (!title) { toast('Title is required'); if(btn){btn.disabled=false;btn.textContent='Publish Article';} return; }
+
+  if (allArticles.filter(a=>a.type==='article').length >= 999 && !editingArticle) {
+    toast('Maximum 999 articles reached. Delete some first.');
+    if(btn){btn.disabled=false;btn.textContent='Publish Article';}
+    return;
+  }
+
+  const data = {
+    type: 'article',
+    title,
+    excerpt,
+    category,
+    author,
+    date: editingArticle ? editingArticle.date : new Date().toISOString().split('T')[0],
+    reading_time: Math.max(3, Math.ceil((excerpt.length + title.length) / 50)),
+    bookmarked: editingArticle ? editingArticle.bookmarked : false,
+    views: editingArticle ? (editingArticle.views || 0) : 0,
+    content_key: '',
+    image_gradient: editingArticle ? editingArticle.image_gradient : GRADIENTS[Math.floor(Math.random()*GRADIENTS.length)],
+    admin_only: document.getElementById('af-admin-only').checked,
+  };
+
+  let result;
+  if (editingArticle) {
+    result = await window.dataSdk.update({ ...editingArticle, ...data });
+  } else {
+    result = await window.dataSdk.create(data);
+  }
+
+  if (result.isOk) {
+    toast(editingArticle ? 'Article updated!' : 'Article published!');
+    editingArticle = null;
+    adminMode = 'list';
+    render();
+  } else {
+    const errorMsg = result.error?.message || 'Unknown error';
+    console.error('Save error:', errorMsg);
+    toast('Error: ' + errorMsg);
+  }
+  if(btn){btn.disabled=false;btn.textContent=editingArticle?'Update Article':'Publish Article';}
+}
+
+let deleteConfirmId = null;
+function handleDelete(id) {
+  if (deleteConfirmId === id) {
+    const a = allArticles.find(x => x.__backendId === id);
+    if (a) {
+      window.dataSdk.delete(a).then(r => {
+        if (r.isOk) toast('Article deleted.');
+        else toast('Error deleting.');
+      });
+    }
+    deleteConfirmId = null;
+  } else {
+    deleteConfirmId = id;
+    toast('Click delete again to confirm.');
+    setTimeout(() => { deleteConfirmId = null; }, 3000);
+  }
+}
+
+// Initial render
+if (darkMode) document.documentElement.classList.add('dark');
+
+// Create sample admin-only article on first load
+(async () => {
+  const hasArticles = allArticles.some(a => a.type === 'article');
+  if (!hasArticles) {
+    await window.dataSdk.create({
+      type: 'article',
+      title: 'Editorial: Behind the Scenes',
+      excerpt: 'An insider\'s look at how we source, write, and publish premium financial analysis.',
+      category: 'Markets',
+      author: 'Editorial Team',
+      date: new Date().toISOString().split('T')[0],
+      reading_time: 8,
+      bookmarked: false,
+      views: 0,
+      content_key: '',
+      image_gradient: GRADIENTS[2],
+      admin_only: true,
+    });
+  }
+})();
+
+render();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9e8f0c2a86653d18',t:'MTc3NTYyNzk4Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
